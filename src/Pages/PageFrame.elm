@@ -1,16 +1,17 @@
-module Pages.PageFrame exposing (..)
+module Pages.PageFrame exposing (viewFooter, viewHeader)
 
 import Html exposing (..)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick)
-import Pages.Admin
-import Pages.Default
 import Route exposing (..)
 import Theme -- Import the new Theme module
 import Types exposing (..)
 
 -- Remove darkModeStyles function
 
+-- Hardcode the other user email for the example page
+otherUserEmailForExample : UserId
+otherUserEmailForExample = "them@example.com"
 
 viewTabs : FrontendModel -> Html FrontendMsg
 viewTabs model =
@@ -23,19 +24,21 @@ viewTabs model =
     in
     div [ Attr.class "flex justify-between mb-5 px-4 items-center" ]
         [ div [ Attr.class "flex" ]
-            (viewTab "Default" Default model.currentRoute model.preferences
-                :: (case model.currentUser of
-                        Just user ->
-                            if user.isSysAdmin then
-                                [ viewTab "Admin" (Admin AdminDefault) model.currentRoute model.preferences ]
+            -- TEMPORARY: Always show only the Default tab
+            [ viewTab "Default" Default model.currentRoute model.preferences ]
+            -- (viewTab "Default" Default model.currentRoute model.preferences
+            --     :: (case model.currentUser of
+            --             Just user ->
+            --                 if user.isSysAdmin then
+            --                     [ viewTab "Admin" (Admin AdminDefault) model.currentRoute model.preferences ]
 
-                            else
-                                []
+            --                 else
+            --                     []
 
-                        Nothing ->
-                            []
-                   )
-            )
+            --             Nothing ->
+            --                 []
+            --        )
+            -- )
         , div [ Attr.class "flex items-center" ]
             [ button
                 [ onClick ToggleDarkMode
@@ -43,60 +46,63 @@ viewTabs model =
                 , Theme.primaryBorder isDark
                 , Theme.primaryText isDark
                 ]
-                [ text (if isDark then
-                            "☀️"
-                       else
-                            "🌙"
-                       )
+                [ text (if isDark then "☀️" else "🌙")
                 ]
+            -- TEMPORARY: Always show Login button
+            , button
+                [ onClick Auth0SigninRequested
+                , Attr.class "px-4 py-1 rounded"
+                , Attr.style "background-color" colors.buttonBg
+                , Attr.style "color" colors.buttonText
+                ]
+                [ text "Login" ]
+            -- , case model.login of
+            --     LoggedIn userInfo ->
+            --         div [ Attr.class "flex items-center" ]
+            --             [ span [ Attr.class "mr-2", Attr.style "color" colors.secondaryText ]
+            --                 [ text userInfo.email ]
+            --             , button
+            --                 [ onClick Logout
+            --                 , Attr.class "px-4 py-1 rounded"
+            --                 , Attr.style "background-color" colors.dangerBg
+            --                 , Attr.style "color" colors.buttonText
+            --                 ]
+            --                 [ text "Logout" ]
+            --             ]
 
-            , case model.login of
-                LoggedIn userInfo ->
-                    div [ Attr.class "flex items-center" ]
-                        [ span [ Attr.class "mr-2", Attr.style "color" colors.secondaryText ]
-                            [ text userInfo.email ]
-                        , button
-                            [ onClick Logout
-                            , Attr.class "px-4 py-1 rounded"
-                            , Attr.style "background-color" colors.dangerBg
-                            , Attr.style "color" colors.buttonText
-                            ]
-                            [ text "Logout" ]
-                        ]
+            --     LoginTokenSent ->
+            --         div [ Attr.class "flex items-center" ]
+            --             [ span [ Attr.class "mr-2 animate-pulse", Attr.style "color" colors.secondaryText ]
+            --                 [ text "Authenticating..." ]
+            --             ]
 
-                LoginTokenSent ->
-                    div [ Attr.class "flex items-center" ]
-                        [ span [ Attr.class "mr-2 animate-pulse", Attr.style "color" colors.secondaryText ]
-                            [ text "Authenticating..." ]
-                        ]
+            --     NotLogged pendingAuth ->
+            --         if pendingAuth then
+            --             button
+            --                 [ Attr.disabled True
+            --                 , Attr.class "px-4 py-1 rounded cursor-wait"
+            --                  , Attr.style "background-color" colors.buttonBg
+            --                  , Attr.style "color" colors.buttonText
+            --                 , Attr.style "opacity" "0.7"
+            --                 ]
+            --                 [ text "Authenticating..." ]
+            --         else
+            --             button
+            --                 [ onClick Auth0SigninRequested
+            --                 , Attr.class "px-4 py-1 rounded"
+            --                 , Attr.style "background-color" colors.buttonBg
+            --                 , Attr.style "color" colors.buttonText
+            --                 ]
+            --                 [ text "Login" ]
 
-                NotLogged pendingAuth ->
-                    if pendingAuth then
-                        button
-                            [ Attr.disabled True
-                            , Attr.class "px-4 py-1 rounded cursor-wait"
-                             , Attr.style "background-color" colors.buttonBg
-                             , Attr.style "color" colors.buttonText
-                            , Attr.style "opacity" "0.7"
-                            ]
-                            [ text "Authenticating..." ]
-                    else
-                        button
-                            [ onClick Auth0SigninRequested
-                            , Attr.class "px-4 py-1 rounded"
-                            , Attr.style "background-color" colors.buttonBg
-                            , Attr.style "color" colors.buttonText
-                            ]
-                            [ text "Login" ]
-
-                JustArrived ->
-                    button
-                        [ onClick Auth0SigninRequested
-                        , Attr.class "px-4 py-1 rounded"
-                        , Attr.style "background-color" colors.buttonBg
-                        , Attr.style "color" colors.buttonText
-                        ]
-                        [ text "Login" ]
+            --     JustArrived ->
+            --         button
+            --             [ onClick Auth0SigninRequested
+            --             , Attr.class "px-4 py-1 rounded"
+            --             , Attr.style "background-color" colors.buttonBg
+            --             , Attr.style "color" colors.buttonText
+            --             ]
+            --             [ text "Login" ]
             ]
         ]
 
@@ -132,30 +138,31 @@ viewTab label page currentPage preferences =
         [ text label ]
 
 
-viewCurrentPage : FrontendModel -> Html FrontendMsg
-viewCurrentPage model =
+-- New Header View
+viewHeader : FrontendModel -> Html FrontendMsg
+viewHeader model =
     let
         isDark = model.preferences.darkMode
         colors = Theme.getColors isDark
     in
-    div
-        [ Attr.class "px-4 pt-8 pb-4"
-        , Attr.style "min-height" "calc(100vh - 100px)"
+    header
+        [ Attr.class "p-4 shadow-md"
+        , Attr.style "background-color" colors.primaryBg
         ]
-        [ case model.currentRoute of
-            Default ->
-                Pages.Default.view model colors
-
-            Admin _ ->
-                Pages.Admin.view model colors
-
-            NotFound ->
-                viewNotFoundPage colors
+        [ viewTabs model -- Reusing existing tabs view
         ]
 
 
-viewNotFoundPage : Theme.Colors -> Html FrontendMsg -- Accept colors
-viewNotFoundPage colors =
-    div [ Attr.class "text-center p-4", Attr.style "color" colors.primaryText ] -- Use theme color
-        [ h1 [] [ text "404 - Page Not Found" ]
+-- New Footer View
+viewFooter : FrontendModel -> Html FrontendMsg
+viewFooter model =
+    let
+        isDark = model.preferences.darkMode
+        colors = Theme.getColors isDark
+    in
+    footer
+        [ Attr.class "p-4 text-center text-sm mt-auto"
+        , Attr.style "background-color" colors.secondaryBg
+        , Attr.style "color" colors.secondaryText
         ]
+        [ text "© 2024 IOU App" ]

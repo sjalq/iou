@@ -393,6 +393,15 @@ This section highlights common mistakes and specific patterns to follow or avoid
 -   **Logging:** Use the `log` function defined in `Backend.elm` (which likely uses `Supplemental.log NoOpBackendMsg`) for backend logging. Do not use the `Log` Msg constructor directly for this purpose.
 -   **`sendToFrontend`:** The pattern `_ = Lamdera.sendToFrontend msg` will **not** work. It discards the command necessary to send the message. Ensure `Lamdera.sendToFrontend` is used correctly within the TEA loop, typically returned as part of the `( model, Cmd msg )` tuple in `update` functions where appropriate.
 
+### Auth
+-  Try your best not to mess with ANY of the Auth related functions in the system. 
+
+
+### Date / Time / DateTime
+-  Use only Elm's default Date field for actually working and calculating times.
+-  Use the rtfeldman/elm-iso8601 lib for working with date strings
+-  For simple things regarding dates, look at Supplemental.elm
+
 # Checking the compiled output
 - Always use the `./compile.sh` script to check your code compiles and to generate Fusion types:
   ```
@@ -405,3 +414,13 @@ This section highlights common mistakes and specific patterns to follow or avoid
 - Run this script:
   - At the start of every new feature session
   - When you complete a feature
+
+  ### ALWAYS
+  -  Always write as little code as humanly possible to solve the problem at hand.
+  -  Always keep explainations as concise as possible.
+  -  Always think as much as you need to.
+  -  Always start every response with "Writing as little code as humanly possible, and being as concise as possible with my explanations..." unless you were asked something unrelated. 
+
+  ### Debugging
+  -  When things goes sideways. Please pepper your code liberally with `_ = Debug.log "{msg}" thingy` and ` |> Debug.log "{msg}"`
+  

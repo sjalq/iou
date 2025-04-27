@@ -10,13 +10,16 @@ import Html.Events as HE
 import Lamdera
 import Pages.Admin
 import Pages.Default
-import Pages.PageFrame exposing (viewCurrentPage, viewTabs)
+import Pages.PageFrame
+import Pages.UserIouHistory
 import Route exposing (..)
 import Supplemental exposing (..)
 import Time exposing (..)
 import Types exposing (..)
 import Url exposing (Url)
 import Theme
+import Dict exposing (Dict)
+import Debug
 -- import Fusion.Patch
 -- import Fusion
 
@@ -56,6 +59,65 @@ subscriptions _ =
     Sub.none
 
 
+-- Define mock user IDs
+currentUserEmail : UserId
+currentUserEmail = "me@example.com"
+
+otherUserEmail : UserId
+otherUserEmail = "them@example.com"
+
+-- Create mock IOUs
+mockIous : List IouEntry
+mockIous =
+    [ { id = "iou1"
+      , creatorId = currentUserEmail
+      , otherPartyId = otherUserEmail
+      , amount = 50.0
+      , description = "Lunch"
+      , createdAt = Time.millisToPosix (1678886400000) -- March 15, 2023
+      , direction = Lent -- I lent to them
+      }
+    , { id = "iou2"
+      , creatorId = otherUserEmail
+      , otherPartyId = currentUserEmail
+      , amount = 20.0
+      , description = "Coffee"
+      , createdAt = Time.millisToPosix (1679318400000) -- March 20, 2023
+      , direction = Lent -- They lent to me
+      }
+     , { id = "iou3"
+      , creatorId = currentUserEmail
+      , otherPartyId = otherUserEmail
+      , amount = 100.0
+      , description = "Tickets"
+      , createdAt = Time.millisToPosix (1681564800000) -- April 15, 2023
+      , direction = Borrowed -- I borrowed from them
+      }
+    , { id = "iou4"
+      , creatorId = otherUserEmail
+      , otherPartyId = currentUserEmail
+      , amount = 30.0
+      , description = "Snacks"
+      , createdAt = Time.millisToPosix (1681996800000) -- April 20, 2023
+      , direction = Borrowed -- They borrowed from me
+      }
+    , { id = "iou5"
+      , creatorId = currentUserEmail
+      , otherPartyId = "another@example.com" -- Interaction with a different user
+      , amount = 10.0
+      , description = "Irrelevant"
+      , createdAt = Time.millisToPosix (1681996800000) -- April 20, 2023
+      , direction = Lent
+      }
+    ]
+
+mockIouDict : Dict IouId IouEntry
+mockIouDict =
+    mockIous
+        |> List.map (\iou -> (iou.id, iou))
+        |> Dict.fromList
+
+
 init : Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg )
 init url key =
     let
@@ -64,6 +126,15 @@ init url key =
         
         initialPreferences =
             { darkMode = True }
+
+        -- Mock current user for testing history page
+        mockCurrentUser : UserFrontend
+        mockCurrentUser =
+             { email = currentUserEmail
+             , isSysAdmin = False
+             , role = "UserRole"
+             , preferences = initialPreferences
+             }
 
         model =
             { key = key
@@ -75,10 +146,13 @@ init url key =
                 }
             , authFlow = Auth.Common.Idle
             , authRedirectBaseUrl = { url | query = Nothing, fragment = Nothing }
-            , login = NotLogged False
-            , currentUser = Nothing
+            , login = LoggedIn { email = currentUserEmail, username = Just "mockuser", name = Just "Mock User" }
+            , currentUser = Just mockCurrentUser
             , pendingAuth = False
             , preferences = initialPreferences
+            , ious = mockIouDict
+            , iouError = Nothing
+            , isLoadingIous = False
             }
     in
     inits model route
@@ -93,17 +167,20 @@ inits model route =
         Default ->
             Pages.Default.init model
 
+        ExampleHistory ->
+            ( model, Cmd.none )
+
         _ ->
             ( model, Cmd.none )
 
 
 update : FrontendMsg -> Model -> ( Model, Cmd FrontendMsg )
 update msg model =
-    case msg of
-        NoOpFrontendMsg ->
+    case ( msg, model.currentRoute ) of
+        ( NoOpFrontendMsg, _ ) ->
             ( model, Cmd.none )
 
-        UrlRequested urlRequest ->
+        ( UrlRequested urlRequest, _ ) ->
             case urlRequest of
                 Internal url ->
                     ( model
@@ -115,7 +192,7 @@ update msg model =
                     , Nav.load url
                     )
 
-        UrlClicked urlRequest ->
+        ( UrlClicked urlRequest, _ ) ->
             case urlRequest of
                 Internal url ->
                     ( model
@@ -127,35 +204,35 @@ update msg model =
                     , Nav.load url
                     )
 
-        UrlChanged url ->
+        ( UrlChanged url, _ ) ->
             let
                 newModel =
                     { model | currentRoute = Route.fromUrl url }
             in
             inits newModel newModel.currentRoute
 
-        DirectToBackend msg_ ->
+        ( DirectToBackend msg_, _ ) ->
             ( model, Lamdera.sendToBackend msg_ )
 
-        Admin_RemoteUrlChanged url ->
+        ( Admin_RemoteUrlChanged url, _ ) ->
             let
                 oldAdminPage =
                     model.adminPage
             in
             ( { model | adminPage = { oldAdminPage | remoteUrl = url } }, Cmd.none )
 
-        GoogleSigninRequested ->
+        ( GoogleSigninRequested, _ ) ->
             Auth.Flow.signInRequested "OAuthGoogle" { model | login = NotLogged True, pendingAuth = True } Nothing
                 |> Tuple.mapSecond (AuthToBackend >> Lamdera.sendToBackend)
 
-        Logout ->
+        ( Logout, _ ) ->
             ( { model | login = NotLogged False, pendingAuth = False, preferences = { darkMode = False } }, Lamdera.sendToBackend LoggedOut )
 
-        Auth0SigninRequested ->
+        ( Auth0SigninRequested, _ ) ->
             Auth.Flow.signInRequested "OAuthAuth0" { model | login = NotLogged True, pendingAuth = True } Nothing
                 |> Tuple.mapSecond (AuthToBackend >> Lamdera.sendToBackend)
 
-        ToggleDarkMode ->
+        ( ToggleDarkMode, _ ) ->
             let
                 newDarkModeState =
                     not model.preferences.darkMode
@@ -172,7 +249,7 @@ update msg model =
             , Lamdera.sendToBackend (SetDarkModePreference newDarkModeState)
             )
 
-        -- Admin_FusionPatch patch ->
+        -- ( Admin_FusionPatch patch, _ ) ->
         --     ( { model
         --         | fusionState =
         --             Fusion.Patch.patch { force = False } patch model.fusionState
@@ -181,8 +258,22 @@ update msg model =
         --     , Lamdera.sendToBackend (Fusion_PersistPatch patch)
         --     )
 
-        -- Admin_FusionQuery query ->
+        -- ( Admin_FusionQuery query, _ ) ->
         --     ( model, Lamdera.sendToBackend (Fusion_Query query) )
+
+        --- IOU Msgs
+        ( GotIouUpdate iouDict, _ ) ->
+            ( { model | ious = iouDict, isLoadingIous = False, iouError = Nothing }, Cmd.none )
+
+        ( IouOpFailed errorMsg, _ ) ->
+            ( { model | iouError = Just errorMsg, isLoadingIous = False }, Cmd.none )
+
+        ( DeleteIouRequest iouId, _ ) ->
+            ( model, Lamdera.sendToBackend (DeleteIou iouId) )
+
+        ( CreateIouRequest iouData, _ ) ->
+            ( model, Lamdera.sendToBackend (CreateIou iouData) )
+
 
 updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
 updateFromBackend msg model =
@@ -202,7 +293,21 @@ updateFromBackend msg model =
             authUpdateFromBackend authToFrontendMsg model
 
         AuthSuccess userInfo ->
-            ( { model | login = LoggedIn userInfo, pendingAuth = False }, Cmd.batch [ Nav.pushUrl model.key "/", Lamdera.sendToBackend GetUserToBackend ] )
+            let
+                updatedModel =
+                    { model | login = LoggedIn userInfo, pendingAuth = False }
+                
+                -- Log route before deciding navigation
+                _ = Debug.log "AuthSuccess: Current route before nav check" model.currentRoute
+
+                -- Only navigate to home if not on the example page
+                navigationCmd =
+                    if model.currentRoute == ExampleHistory then
+                        Cmd.none
+                    else
+                        Nav.pushUrl model.key "/"
+            in
+            ( updatedModel, Cmd.batch [ navigationCmd, Lamdera.sendToBackend GetUserToBackend ] )
 
         UserInfoMsg mUserinfo ->
             case mUserinfo of
@@ -222,21 +327,57 @@ updateFromBackend msg model =
             -- Simply ignore the denied action without any UI notification
             ( model, Cmd.none )
 
+        --- IOU Msgs
+        IouSync iouDict ->
+            ( { model | ious = iouDict, iouError = Nothing, isLoadingIous = False }, Cmd.none )
 
-view : Model -> Browser.Document FrontendMsg
+        IouDeletedSuccessfully iouId ->
+            ( { model | ious = Dict.remove iouId model.ious }, Cmd.none )
+
+        IouOpError errorMsg ->
+             ( { model | iouError = Just errorMsg, isLoadingIous = False }, Cmd.none )
+
+
+view : Model -> Document FrontendMsg
 view model =
-    { title = "Dashboard"
-    , body =
-        [ div 
-            [ Theme.primaryBg model.preferences.darkMode
-            , Theme.primaryText model.preferences.darkMode
-            , Attr.style "min-height" "100vh"
-            , Attr.class "p-4"
-            ]
-            [ viewTabs model
-            , viewCurrentPage model
-            ]
-        ]
+    let
+        isDark = model.preferences.darkMode
+        colors = Theme.getColors isDark
+        themeClass =
+            if isDark then "dark" else ""
+
+        -- Determine the main content based on the route
+        viewContent =
+            div [ Attr.class "flex-grow container mx-auto p-4" ] -- Container and padding moved here
+                [ case model.currentRoute of
+                    Admin adminRoute ->
+                        Pages.Admin.view model colors 
+
+                    Default ->
+                        Pages.Default.view model colors
+                    
+                    ExampleHistory ->
+                        Pages.UserIouHistory.view currentUserEmail otherUserEmail mockIouDict colors isDark
+                    
+                    NotFound ->
+                        div [ Attr.class "text-center p-4", Attr.style "color" colors.primaryText ]
+                            [ h1 [ Attr.class "text-2xl font-bold" ] [ text "404 - Page Not Found" ]
+                            , p [] [ text "The page you requested could not be found." ]
+                            ]      
+                ]
+
+        -- Assemble the overall page structure using PageFrame components
+        viewFrame =
+            div [ Attr.class themeClass ]
+                [ div [ Attr.class "min-h-screen flex flex-col", Attr.style "background-color" colors.primaryBg ]
+                    [ Pages.PageFrame.viewHeader model -- Use header from PageFrame
+                    , viewContent -- Inject the content determined above
+                    , Pages.PageFrame.viewFooter model -- Use footer from PageFrame
+                    ]
+                ]
+    in
+    { title = Route.title model.currentRoute
+    , body = [ viewFrame ]
     }
 
 
@@ -288,9 +429,24 @@ initWithAuth url key =
     let
         ( model, cmds ) =
             init url key
+        
+        -- Log model state after init but before authCallbackCmd
+        _ = Debug.log "initWithAuth: Model after init" { route = model.currentRoute, login = model.login }
+        
+        ( finalModel, authCmd ) = 
+             authCallbackCmd model url key
+        
+        -- Log model state after authCallbackCmd 
+        _ = Debug.log "initWithAuth: Model after authCallbackCmd" { route = finalModel.currentRoute, login = finalModel.login }
+
     in
-    authCallbackCmd model url key
-        |> Tuple.mapSecond (\cmd -> Cmd.batch [ cmds, cmd, Lamdera.sendToBackend GetUserToBackend ])
+    -- Log just before returning
+    Tuple.mapSecond
+        (\finalCmd -> 
+            let _ = Debug.log "initWithAuth: Final Cmds being batched" () in
+            Cmd.batch [ cmds, finalCmd, Lamdera.sendToBackend GetUserToBackend ]
+        )
+        ( finalModel, authCmd )
 
 
 viewWithAuth : Model -> Browser.Document FrontendMsg

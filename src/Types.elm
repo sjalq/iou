@@ -6,6 +6,7 @@ import Browser.Navigation exposing (Key)
 import Dict exposing (Dict)
 import Http
 import Lamdera
+import Time exposing (Posix)
 import Url exposing (Url)
 -- import Fusion.Patch
 -- import Fusion
@@ -31,6 +32,7 @@ type Route
     = Default
     | Admin AdminRoute
     | NotFound
+    | ExampleHistory
 
 
 type AdminRoute
@@ -58,6 +60,9 @@ type alias FrontendModel =
     , pendingAuth : Bool
     -- , fusionState : Fusion.Value
     , preferences : Preferences
+    , ious : Dict IouId IouEntry
+    , iouError : Maybe String
+    , isLoadingIous : Bool
     }
 
 
@@ -67,6 +72,7 @@ type alias BackendModel =
     , sessions : Dict Lamdera.SessionId Auth.Common.UserInfo
     , users : Dict Email User
     , pollingJobs : Dict PollingToken (PollingStatus PollData)
+    , ious : Dict IouId IouEntry
     }
 
     
@@ -85,6 +91,11 @@ type FrontendMsg
     --- Fusion
     -- | Admin_FusionPatch Fusion.Patch.Patch
     -- | Admin_FusionQuery Fusion.Query
+    --- IOU Msgs
+    | GotIouUpdate (Dict IouId IouEntry)
+    | IouOpFailed String
+    | DeleteIouRequest IouId
+    | CreateIouRequest IouEntryData
 
 
 type ToBackend
@@ -99,6 +110,10 @@ type ToBackend
     --- Fusion
     -- | Fusion_PersistPatch Fusion.Patch.Patch
     -- | Fusion_Query Fusion.Query
+    --- IOU Msgs
+    | FetchIous
+    | CreateIou IouEntryData
+    | DeleteIou IouId
 
 
 type BackendMsg
@@ -122,6 +137,10 @@ type ToFrontend
     | UserDataToFrontend UserFrontend
     | PermissionDenied ToBackend
     -- | Admin_FusionResponse Fusion.Value
+    --- IOU Msgs
+    | IouSync (Dict IouId IouEntry)
+    | IouDeletedSuccessfully IouId
+    | IouOpError String
 
 
 type alias Email =
@@ -181,3 +200,37 @@ type alias PollData =
 type alias Preferences =
     { darkMode : Bool
     }
+
+
+-- IOU RELATED TYPES
+type alias IouId =
+    String
+
+
+type IouDirection
+    = Lent -- I lent money to someone
+    | Borrowed -- I borrowed money from someone
+
+
+type alias IouEntry =
+    { id : IouId
+    , creatorId : UserId -- Assumes UserId is Email for now
+    , otherPartyId : UserId -- Assumes UserId is Email for now
+    , amount : Float
+    , description : String
+    , createdAt : Posix
+    , direction : IouDirection
+    }
+
+
+type alias IouEntryData =
+    { otherPartyId : UserId -- Assumes UserId is Email for now
+    , amount : Float
+    , description : String
+    , direction : IouDirection
+    }
+
+
+-- USER RELATED TYPES
+type alias UserId =
+    Email -- Define UserId alias

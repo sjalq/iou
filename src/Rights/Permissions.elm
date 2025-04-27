@@ -35,6 +35,15 @@ actionRoleMap msg =
         SetDarkModePreference _ ->
             Anonymous -- Allow anyone to set their own preference
 
+        FetchIous ->
+            UserRole
+
+        CreateIou _ ->
+            UserRole
+
+        DeleteIou _ ->
+            UserRole
+
         -- Fusion_PersistPatch _ ->
         --     SysAdmin
 

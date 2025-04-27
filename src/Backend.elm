@@ -13,6 +13,7 @@ import Rights.User exposing (createUser, getUserRole, insertUser, isSysAdmin)
 import Supplemental exposing (..)
 import Task
 import Types exposing (..)
+import Debug -- Import Debug
 
 
 type alias Model =
@@ -42,6 +43,7 @@ init =
       , sessions = Dict.empty
       , users = Dict.empty
       , pollingJobs = Dict.empty
+      , ious = Dict.empty
       }
     , Cmd.none
     )
@@ -215,6 +217,16 @@ updateFromFrontend browserCookie connectionId msg model =
         --     ( model
         --     , Lamdera.sendToFrontend connectionId (Admin_FusionResponse (Fusion.Generated.Types.toValue_BackendModel model))
         --     )
+
+        --- IOU Msgs
+        FetchIous ->
+            Debug.todo "Implement FetchIous"
+
+        CreateIou _ ->
+            Debug.todo "Implement CreateIou"
+
+        DeleteIou _ ->
+            Debug.todo "Implement DeleteIou"
 
 
 updateFromFrontendCheckingRights : BrowserCookie -> ConnectionId -> ToBackend -> Model -> ( Model, Cmd BackendMsg )
