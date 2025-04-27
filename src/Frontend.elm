@@ -61,10 +61,13 @@ subscriptions _ =
 
 -- Define mock user IDs
 currentUserEmail : UserId
-currentUserEmail = "me@example.com"
+currentUserEmail = "schalk.dormehl@gmail.com" -- Updated for mock data
 
 otherUserEmail : UserId
 otherUserEmail = "them@example.com"
+
+sakeligaUserEmail : UserId -- Added for new mock data
+sakeligaUserEmail = "s.dormehl@sakeliga.org.za"
 
 -- Create mock IOUs
 mockIous : List IouEntry
@@ -109,6 +112,22 @@ mockIous =
       , createdAt = Time.millisToPosix (1681996800000) -- April 20, 2023
       , direction = Lent
       }
+    , { id = "iou6"
+      , creatorId = currentUserEmail
+      , otherPartyId = sakeligaUserEmail 
+      , amount = 250.0
+      , description = "Consulting Work"
+      , createdAt = Time.millisToPosix (1704067200000) -- Jan 1, 2024
+      , direction = Lent -- I lent (provided service)
+      }
+    , { id = "iou7"
+      , creatorId = sakeligaUserEmail
+      , otherPartyId = currentUserEmail
+      , amount = 75.50
+      , description = "Software License"
+      , createdAt = Time.millisToPosix (1706745600000) -- Feb 1, 2024
+      , direction = Lent -- They lent (paid for license I use)
+      }
     ]
 
 mockIouDict : Dict IouId IouEntry
@@ -128,13 +147,13 @@ init url key =
             { darkMode = True }
 
         -- Mock current user for testing history page
-        mockCurrentUser : UserFrontend
-        mockCurrentUser =
-             { email = currentUserEmail
-             , isSysAdmin = False
-             , role = "UserRole"
-             , preferences = initialPreferences
-             }
+        -- mockCurrentUser : UserFrontend
+        -- mockCurrentUser =
+        --      { email = currentUserEmail
+        --      , isSysAdmin = False
+        --      , role = "UserRole"
+        --      , preferences = initialPreferences
+        --      }
 
         model =
             { key = key
@@ -146,8 +165,8 @@ init url key =
                 }
             , authFlow = Auth.Common.Idle
             , authRedirectBaseUrl = { url | query = Nothing, fragment = Nothing }
-            , login = LoggedIn { email = currentUserEmail, username = Just "mockuser", name = Just "Mock User" }
-            , currentUser = Just mockCurrentUser
+            , login = NotLogged False -- Reverted
+            , currentUser = Nothing -- Reverted
             , pendingAuth = False
             , preferences = initialPreferences
             , ious = mockIouDict
@@ -167,10 +186,7 @@ inits model route =
         Default ->
             Pages.Default.init model
 
-        ExampleHistory ->
-            ( model, Cmd.none )
-
-        _ ->
+        _ -> -- Handles IouHistory, NotFound implicitly by doing nothing extra on init
             ( model, Cmd.none )
 
 
@@ -293,21 +309,10 @@ updateFromBackend msg model =
             authUpdateFromBackend authToFrontendMsg model
 
         AuthSuccess userInfo ->
-            let
-                updatedModel =
-                    { model | login = LoggedIn userInfo, pendingAuth = False }
-                
-                -- Log route before deciding navigation
-                _ = Debug.log "AuthSuccess: Current route before nav check" model.currentRoute
-
-                -- Only navigate to home if not on the example page
-                navigationCmd =
-                    if model.currentRoute == ExampleHistory then
-                        Cmd.none
-                    else
-                        Nav.pushUrl model.key "/"
-            in
-            ( updatedModel, Cmd.batch [ navigationCmd, Lamdera.sendToBackend GetUserToBackend ] )
+            -- Reverted: Always navigate to home and fetch user info
+            ( { model | login = LoggedIn userInfo, pendingAuth = False }
+            , Cmd.batch [ Nav.pushUrl model.key "/", Lamdera.sendToBackend GetUserToBackend ]
+            )
 
         UserInfoMsg mUserinfo ->
             case mUserinfo of
@@ -356,10 +361,32 @@ view model =
                     Default ->
                         Pages.Default.view model colors
                     
-                    ExampleHistory ->
-                        Pages.UserIouHistory.view currentUserEmail otherUserEmail mockIouDict colors isDark
-                    
-                    NotFound ->
+                    IouHistory maybeOtherUserId -> -- Logic moved here
+                        case ( model.currentUser, maybeOtherUserId ) of
+                            ( Just currentUserInfo, Just otherUserId ) ->
+                                Pages.UserIouHistory.view currentUserInfo.email otherUserId model.ious colors isDark
+                            
+                            ( Nothing, _ ) -> -- User not logged in
+                                div [ Attr.class "text-center p-4", Attr.style "color" colors.primaryText ]
+                                    [ h2 [ Attr.class "text-xl font-semibold" ] [ text "Login Required" ]
+                                    , p [] [ text "Please log in to view your IOU history." ]
+                                      -- Optionally add a login button here
+                                    , button
+                                        [ HE.onClick Auth0SigninRequested -- Assuming Auth0 is the primary login
+                                        , Attr.class "mt-4 px-4 py-2 rounded"
+                                        , Attr.style "background-color" colors.buttonBg
+                                        , Attr.style "color" colors.buttonText
+                                        ]
+                                        [ text "Login" ]
+                                    ]
+
+                            ( _, Nothing ) -> -- otherUserId is missing from URL
+                                div [ Attr.class "text-center p-4", Attr.style "color" colors.primaryText ]
+                                    [ h2 [ Attr.class "text-xl font-semibold" ] [ text "Invalid User" ]
+                                    , p [] [ text "Could not determine the user for the IOU history." ]
+                                    ]
+
+                    NotFound -> -- Logic moved here
                         div [ Attr.class "text-center p-4", Attr.style "color" colors.primaryText ]
                             [ h1 [ Attr.class "text-2xl font-bold" ] [ text "404 - Page Not Found" ]
                             , p [] [ text "The page you requested could not be found." ]
@@ -429,21 +456,20 @@ initWithAuth url key =
     let
         ( model, cmds ) =
             init url key
-        
-        -- Log model state after init but before authCallbackCmd
-        _ = Debug.log "initWithAuth: Model after init" { route = model.currentRoute, login = model.login }
-        
-        ( finalModel, authCmd ) = 
-             authCallbackCmd model url key
-        
-        -- Log model state after authCallbackCmd 
-        _ = Debug.log "initWithAuth: Model after authCallbackCmd" { route = finalModel.currentRoute, login = finalModel.login }
 
+        -- Log model state after init but before authCallbackCmd
+        -- _ = Debug.log "initWithAuth: Model after init" { route = model.currentRoute, login = model.login }
+
+        ( finalModel, authCmd ) =
+            authCallbackCmd model url key
+
+        -- Log model state after authCallbackCmd
+        -- _ = Debug.log "initWithAuth: Model after authCallbackCmd" { route = finalModel.currentRoute, login = finalModel.login }
     in
     -- Log just before returning
     Tuple.mapSecond
-        (\finalCmd -> 
-            let _ = Debug.log "initWithAuth: Final Cmds being batched" () in
+        (\finalCmd ->
+            -- let _ = Debug.log "initWithAuth: Final Cmds being batched" () in -- Removed debug log
             Cmd.batch [ cmds, finalCmd, Lamdera.sendToBackend GetUserToBackend ]
         )
         ( finalModel, authCmd )

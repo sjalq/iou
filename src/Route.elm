@@ -1,9 +1,10 @@
 module Route exposing (..)
 
-import Types exposing (AdminRoute(..), Route(..))
+import Types exposing (AdminRoute(..), Route(..), UserId)
 import Url exposing (Url, percentEncode)
 import Url.Builder
-import Url.Parser as Parser exposing ((</>), Parser, custom, int, oneOf, s, string)
+import Url.Parser as Parser exposing ((</>), (<?>), Parser, custom, int, oneOf, s, string, query)
+import Url.Parser.Query
 import Debug
 
 
@@ -15,7 +16,7 @@ parser =
         , Parser.map (Admin AdminLogs) (s "admin" </> s "logs")
         , Parser.map (Admin AdminFetchModel) (s "admin" </> s "fetch-model")
         --, Parser.map (Admin AdminFusion) (s "admin" </> s "fusion")
-        , Parser.map ExampleHistory (s "iou-history" </> s "example")
+        , Parser.map IouHistory (s "iou" <?> Url.Parser.Query.string "other")
         ]
 
 
@@ -48,8 +49,12 @@ title route =
         Admin AdminFetchModel ->
             "IOU App - Admin Fetch Model"
 
-        ExampleHistory ->
-            "IOU History Example"
+        IouHistory maybeOtherUser ->
+            case maybeOtherUser of
+                Just otherUser ->
+                    "IOU History with " ++ otherUser
+                Nothing -> 
+                    "IOU History - Invalid User"
 
         NotFound ->
             "IOU App - Not Found"
@@ -73,8 +78,14 @@ toString route =
         -- Admin AdminFusion ->
         --     "/admin/fusion"
 
-        ExampleHistory ->
-            "/iou-history/example"
+        IouHistory maybeOtherUser ->
+            case maybeOtherUser of
+                Just otherUser ->
+                    Url.Builder.crossOrigin "" 
+                        [ "iou" ]
+                        [ Url.Builder.string "other" otherUser ]
+                Nothing -> -- Should ideally not be navigated to directly
+                    "/iou" 
 
         NotFound ->
             "/not-found"

@@ -32,7 +32,7 @@ type Route
     = Default
     | Admin AdminRoute
     | NotFound
-    | ExampleHistory
+    | IouHistory (Maybe UserId)
 
 
 type AdminRoute

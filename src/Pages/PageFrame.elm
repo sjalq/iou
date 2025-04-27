@@ -49,60 +49,53 @@ viewTabs model =
                 [ text (if isDark then "☀️" else "🌙")
                 ]
             -- TEMPORARY: Always show Login button
-            , button
-                [ onClick Auth0SigninRequested
-                , Attr.class "px-4 py-1 rounded"
-                , Attr.style "background-color" colors.buttonBg
-                , Attr.style "color" colors.buttonText
-                ]
-                [ text "Login" ]
-            -- , case model.login of
-            --     LoggedIn userInfo ->
-            --         div [ Attr.class "flex items-center" ]
-            --             [ span [ Attr.class "mr-2", Attr.style "color" colors.secondaryText ]
-            --                 [ text userInfo.email ]
-            --             , button
-            --                 [ onClick Logout
-            --                 , Attr.class "px-4 py-1 rounded"
-            --                 , Attr.style "background-color" colors.dangerBg
-            --                 , Attr.style "color" colors.buttonText
-            --                 ]
-            --                 [ text "Logout" ]
-            --             ]
+            , case model.login of
+                LoggedIn userInfo ->
+                    div [ Attr.class "flex items-center" ]
+                        [ span [ Attr.class "mr-2", Attr.style "color" colors.secondaryText ]
+                            [ text userInfo.email ]
+                        , button
+                            [ onClick Logout
+                            , Attr.class "px-4 py-1 rounded"
+                            , Attr.style "background-color" colors.dangerBg
+                            , Attr.style "color" colors.buttonText
+                            ]
+                            [ text "Logout" ]
+                        ]
 
-            --     LoginTokenSent ->
-            --         div [ Attr.class "flex items-center" ]
-            --             [ span [ Attr.class "mr-2 animate-pulse", Attr.style "color" colors.secondaryText ]
-            --                 [ text "Authenticating..." ]
-            --             ]
+                LoginTokenSent ->
+                    div [ Attr.class "flex items-center" ]
+                        [ span [ Attr.class "mr-2 animate-pulse", Attr.style "color" colors.secondaryText ]
+                            [ text "Authenticating..." ]
+                        ]
 
-            --     NotLogged pendingAuth ->
-            --         if pendingAuth then
-            --             button
-            --                 [ Attr.disabled True
-            --                 , Attr.class "px-4 py-1 rounded cursor-wait"
-            --                  , Attr.style "background-color" colors.buttonBg
-            --                  , Attr.style "color" colors.buttonText
-            --                 , Attr.style "opacity" "0.7"
-            --                 ]
-            --                 [ text "Authenticating..." ]
-            --         else
-            --             button
-            --                 [ onClick Auth0SigninRequested
-            --                 , Attr.class "px-4 py-1 rounded"
-            --                 , Attr.style "background-color" colors.buttonBg
-            --                 , Attr.style "color" colors.buttonText
-            --                 ]
-            --                 [ text "Login" ]
+                NotLogged pendingAuth ->
+                    if pendingAuth then
+                        button
+                            [ Attr.disabled True
+                            , Attr.class "px-4 py-1 rounded cursor-wait"
+                             , Attr.style "background-color" colors.buttonBg
+                             , Attr.style "color" colors.buttonText
+                            , Attr.style "opacity" "0.7"
+                            ]
+                            [ text "Authenticating..." ]
+                    else
+                        button
+                            [ onClick Auth0SigninRequested
+                            , Attr.class "px-4 py-1 rounded"
+                            , Attr.style "background-color" colors.buttonBg
+                            , Attr.style "color" colors.buttonText
+                            ]
+                            [ text "Login" ]
 
-            --     JustArrived ->
-            --         button
-            --             [ onClick Auth0SigninRequested
-            --             , Attr.class "px-4 py-1 rounded"
-            --             , Attr.style "background-color" colors.buttonBg
-            --             , Attr.style "color" colors.buttonText
-            --             ]
-            --             [ text "Login" ]
+                JustArrived ->
+                    button
+                        [ onClick Auth0SigninRequested
+                        , Attr.class "px-4 py-1 rounded"
+                        , Attr.style "background-color" colors.buttonBg
+                        , Attr.style "color" colors.buttonText
+                        ]
+                        [ text "Login" ]
             ]
         ]
 
