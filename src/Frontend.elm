@@ -326,56 +326,35 @@ update msg model =
             ( { model | newIouInput = { oldInput | otherPartyId = otherPartyId } }, Cmd.none )
 
         SubmitNewIou ->
-            -- For now, handle entirely in frontend
-            case ( String.toFloat model.newIouInput.amount, model.currentUser ) of
-                ( Just amountFloat, Just currentUser ) ->
+            case String.toFloat model.newIouInput.amount of
+                Just amountFloat ->
                     let
-                        newEntryData : IouEntryData
-                        newEntryData =
+                        iouEntryData : IouEntryData
+                        iouEntryData =
                             { otherPartyId = model.newIouInput.otherPartyId
                             , amount = amountFloat
                             , description = model.newIouInput.description
                             , direction = model.newIouInput.direction
                             }
 
-                        -- Generate a temporary ID using a simple counter
-                        tempId =
-                            "temp-" ++ String.fromInt (Dict.size model.ious + 1)
-
-                        -- Placeholder for Time.now
-                        currentTimePlaceholder =
-                            Time.millisToPosix 1710000000000 -- Placeholder timestamp
-
-                        newEntry : IouEntry
-                        newEntry =
-                            { id = tempId
-                            , creatorId = currentUser.email
-                            , otherPartyId = newEntryData.otherPartyId
-                            , amount = newEntryData.amount
-                            , description = newEntryData.description
-                            , createdAt = currentTimePlaceholder
-                            , direction = newEntryData.direction
-                            }
-
-                        -- Reset form and add to local dict
-                        updatedIous =
-                            Dict.insert newEntry.id newEntry model.ious
-
+                        -- Clear the form after attempting submission
                         clearedInput : NewIouInput
                         clearedInput =
-                            { otherPartyId = ""
-                            , amount = ""
-                            , description = ""
-                            , direction = Lent -- Reset to default
-                            }
+                             { otherPartyId = ""
+                             , amount = ""
+                             , description = ""
+                             , direction = Lent -- Reset to default
+                             }
+
+                        updatedModel =
+                            { model | newIouInput = clearedInput, iouError = Nothing }
+
                     in
-                    ( { model | ious = updatedIous, newIouInput = clearedInput, iouError = Nothing }, Cmd.none )
+                    ( updatedModel, Lamdera.sendToBackend (CreateIou iouEntryData) )
 
-                ( Nothing, _ ) ->
-                    ( { model | iouError = Just "Invalid amount. Please enter a number." }, Cmd.none )
-
-                ( _, Nothing ) ->
-                     ( { model | iouError = Just "User not logged in." }, Cmd.none )
+                Nothing ->
+                    -- Handle invalid amount input
+                    ( { model | iouError = Just "Invalid amount entered. Please enter a number." }, Cmd.none )
 
 
 updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )

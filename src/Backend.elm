@@ -11,9 +11,10 @@ import Rights.Permissions exposing (sessionCanPerformAction)
 import Rights.Role exposing (roleToString)
 import Rights.User exposing (createUser, getUserRole, insertUser, isSysAdmin)
 import Supplemental exposing (..)
-import Task
+import Task exposing (Task)
 import Types exposing (..)
 import Debug -- Import Debug
+import Time exposing (Posix)
 
 
 type alias Model =
@@ -113,6 +114,24 @@ update msg model =
             in
             ( { model | pollingJobs = updatedPollingJobs }, Cmd.none )
                 |> log ("Updated job " ++ token ++ " with timestamp: " ++ String.fromInt timestamp)
+
+        HandleCreatedIouResult connectionId result ->
+            case result of
+                Ok iouEntry ->
+                    let
+                        updatedModel =
+                            { model | ious = Dict.insert iouEntry.id iouEntry model.ious }
+
+                        -- Send the full list of IOUs for that user back
+                        userIous =
+                            Dict.filter (\_ iou -> iou.creatorId == iouEntry.creatorId) updatedModel.ious
+                    in
+                    ( updatedModel, Lamdera.sendToFrontend connectionId (IouSync userIous) )
+                        |> log ("IOU created successfully: " ++ iouEntry.id)
+
+                Err errorMsg ->
+                    ( model, Lamdera.sendToFrontend connectionId (IouOpError ("Failed to create IOU: " ++ errorMsg)) )
+                        |> log ("Failed to create IOU: " ++ errorMsg)
 
 
 updateFromFrontend : BrowserCookie -> ConnectionId -> ToBackend -> Model -> ( Model, Cmd BackendMsg )
@@ -222,8 +241,35 @@ updateFromFrontend browserCookie connectionId msg model =
         FetchIous ->
             Debug.todo "Implement FetchIous"
 
-        CreateIou _ ->
-            Debug.todo "Implement CreateIou"
+        CreateIou iouData ->
+            case getUserFromCookie browserCookie model of
+                Just user ->
+                    let
+                        createTask : Task Never (Result String IouEntry)
+                        createTask =
+                            Time.now
+                                |> Task.map (\time ->
+                                    let
+                                        -- Create a simple ID using timestamp and user email
+                                        newId =
+                                            user.email ++ "@" ++ String.fromInt (Time.posixToMillis time)
+                                    in
+                                    Ok { id = newId
+                                       , creatorId = user.email
+                                       , otherPartyId = iouData.otherPartyId
+                                       , amount = iouData.amount
+                                       , description = iouData.description
+                                       , createdAt = time
+                                       , direction = iouData.direction
+                                       }
+                                )
+                                |> Task.onError (\_ -> Task.succeed (Err "Failed to get time")) -- Map error to Ok (Err ...)
+                    in
+                    ( model, Task.perform (HandleCreatedIouResult connectionId) createTask )
+                
+                Nothing ->
+                     ( model, Lamdera.sendToFrontend connectionId (IouOpError "User not logged in or found") )
+                         |> log "CreateIou failed: User not found for cookie."
 
         DeleteIou _ ->
             Debug.todo "Implement DeleteIou"

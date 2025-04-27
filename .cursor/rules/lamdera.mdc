@@ -412,6 +412,9 @@ This section highlights common mistakes and specific patterns to follow or avoid
 -  The structure in Elm is purposefully flat, keep it that way.
 -  Don't bother with 'form' use inputs with msg pls to manage form inputs
 
+### Including Random
+-  The Random library is almost never needed. Try to work around it as far as possible. 
+
 # Checking the compiled output
 - Always use the `./compile.sh` script to check your code compiles and to generate Fusion types:
   ```

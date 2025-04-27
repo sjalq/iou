@@ -133,6 +133,7 @@ type BackendMsg
       -- example to show polling mechanism
     | GotCryptoPriceResult PollingToken (Result Http.Error String)
     | StoreTaskResult PollingToken (Result String String)
+    | HandleCreatedIouResult ConnectionId (Result String IouEntry)
 
 
 type ToFrontend
