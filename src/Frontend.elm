@@ -20,6 +20,7 @@ import Url exposing (Url)
 import Theme
 import Dict exposing (Dict)
 import Debug
+-- import Random
 -- import Fusion.Patch
 -- import Fusion
 
@@ -146,6 +147,14 @@ init url key =
         initialPreferences =
             { darkMode = True }
 
+        initialNewIouInput : NewIouInput
+        initialNewIouInput =
+            { otherPartyId = ""
+            , amount = ""
+            , description = ""
+            , direction = Lent -- Default direction
+            }
+
         -- Mock current user for testing history page
         -- mockCurrentUser : UserFrontend
         -- mockCurrentUser =
@@ -172,6 +181,7 @@ init url key =
             , ious = mockIouDict
             , iouError = Nothing
             , isLoadingIous = False
+            , newIouInput = initialNewIouInput
             }
     in
     inits model route
@@ -192,11 +202,11 @@ inits model route =
 
 update : FrontendMsg -> Model -> ( Model, Cmd FrontendMsg )
 update msg model =
-    case ( msg, model.currentRoute ) of
-        ( NoOpFrontendMsg, _ ) ->
+    case msg of
+        NoOpFrontendMsg ->
             ( model, Cmd.none )
 
-        ( UrlRequested urlRequest, _ ) ->
+        UrlRequested urlRequest ->
             case urlRequest of
                 Internal url ->
                     ( model
@@ -208,7 +218,7 @@ update msg model =
                     , Nav.load url
                     )
 
-        ( UrlClicked urlRequest, _ ) ->
+        UrlClicked urlRequest ->
             case urlRequest of
                 Internal url ->
                     ( model
@@ -220,35 +230,35 @@ update msg model =
                     , Nav.load url
                     )
 
-        ( UrlChanged url, _ ) ->
+        UrlChanged url ->
             let
                 newModel =
                     { model | currentRoute = Route.fromUrl url }
             in
             inits newModel newModel.currentRoute
 
-        ( DirectToBackend msg_, _ ) ->
+        DirectToBackend msg_ ->
             ( model, Lamdera.sendToBackend msg_ )
 
-        ( Admin_RemoteUrlChanged url, _ ) ->
+        Admin_RemoteUrlChanged url ->
             let
                 oldAdminPage =
                     model.adminPage
             in
             ( { model | adminPage = { oldAdminPage | remoteUrl = url } }, Cmd.none )
 
-        ( GoogleSigninRequested, _ ) ->
+        GoogleSigninRequested ->
             Auth.Flow.signInRequested "OAuthGoogle" { model | login = NotLogged True, pendingAuth = True } Nothing
                 |> Tuple.mapSecond (AuthToBackend >> Lamdera.sendToBackend)
 
-        ( Logout, _ ) ->
+        Logout ->
             ( { model | login = NotLogged False, pendingAuth = False, preferences = { darkMode = False } }, Lamdera.sendToBackend LoggedOut )
 
-        ( Auth0SigninRequested, _ ) ->
+        Auth0SigninRequested ->
             Auth.Flow.signInRequested "OAuthAuth0" { model | login = NotLogged True, pendingAuth = True } Nothing
                 |> Tuple.mapSecond (AuthToBackend >> Lamdera.sendToBackend)
 
-        ( ToggleDarkMode, _ ) ->
+        ToggleDarkMode ->
             let
                 newDarkModeState =
                     not model.preferences.darkMode
@@ -265,7 +275,7 @@ update msg model =
             , Lamdera.sendToBackend (SetDarkModePreference newDarkModeState)
             )
 
-        -- ( Admin_FusionPatch patch, _ ) ->
+        -- Admin_FusionPatch patch ->
         --     ( { model
         --         | fusionState =
         --             Fusion.Patch.patch { force = False } patch model.fusionState
@@ -274,21 +284,98 @@ update msg model =
         --     , Lamdera.sendToBackend (Fusion_PersistPatch patch)
         --     )
 
-        -- ( Admin_FusionQuery query, _ ) ->
+        -- Admin_FusionQuery query ->
         --     ( model, Lamdera.sendToBackend (Fusion_Query query) )
 
         --- IOU Msgs
-        ( GotIouUpdate iouDict, _ ) ->
+        GotIouUpdate iouDict ->
             ( { model | ious = iouDict, isLoadingIous = False, iouError = Nothing }, Cmd.none )
 
-        ( IouOpFailed errorMsg, _ ) ->
+        IouOpFailed errorMsg ->
             ( { model | iouError = Just errorMsg, isLoadingIous = False }, Cmd.none )
 
-        ( DeleteIouRequest iouId, _ ) ->
+        DeleteIouRequest iouId ->
             ( model, Lamdera.sendToBackend (DeleteIou iouId) )
 
-        ( CreateIouRequest iouData, _ ) ->
+        CreateIouRequest iouData ->
             ( model, Lamdera.sendToBackend (CreateIou iouData) )
+
+        -- IOU INPUT HANDLING --
+        UpdateNewIouDescription description ->
+            let
+                oldInput = model.newIouInput
+            in
+            ( { model | newIouInput = { oldInput | description = description } }, Cmd.none )
+
+        UpdateNewIouAmount amountStr ->
+            let
+                oldInput = model.newIouInput
+            in
+            ( { model | newIouInput = { oldInput | amount = amountStr } }, Cmd.none )
+
+        UpdateNewIouDirection direction ->
+            let
+                oldInput = model.newIouInput
+            in
+            ( { model | newIouInput = { oldInput | direction = direction } }, Cmd.none )
+
+        UpdateNewIouOtherParty otherPartyId ->
+            let
+                oldInput = model.newIouInput
+            in
+            ( { model | newIouInput = { oldInput | otherPartyId = otherPartyId } }, Cmd.none )
+
+        SubmitNewIou ->
+            -- For now, handle entirely in frontend
+            case ( String.toFloat model.newIouInput.amount, model.currentUser ) of
+                ( Just amountFloat, Just currentUser ) ->
+                    let
+                        newEntryData : IouEntryData
+                        newEntryData =
+                            { otherPartyId = model.newIouInput.otherPartyId
+                            , amount = amountFloat
+                            , description = model.newIouInput.description
+                            , direction = model.newIouInput.direction
+                            }
+
+                        -- Generate a temporary ID using a simple counter
+                        tempId =
+                            "temp-" ++ String.fromInt (Dict.size model.ious + 1)
+
+                        -- Placeholder for Time.now
+                        currentTimePlaceholder =
+                            Time.millisToPosix 1710000000000 -- Placeholder timestamp
+
+                        newEntry : IouEntry
+                        newEntry =
+                            { id = tempId
+                            , creatorId = currentUser.email
+                            , otherPartyId = newEntryData.otherPartyId
+                            , amount = newEntryData.amount
+                            , description = newEntryData.description
+                            , createdAt = currentTimePlaceholder
+                            , direction = newEntryData.direction
+                            }
+
+                        -- Reset form and add to local dict
+                        updatedIous =
+                            Dict.insert newEntry.id newEntry model.ious
+
+                        clearedInput : NewIouInput
+                        clearedInput =
+                            { otherPartyId = ""
+                            , amount = ""
+                            , description = ""
+                            , direction = Lent -- Reset to default
+                            }
+                    in
+                    ( { model | ious = updatedIous, newIouInput = clearedInput, iouError = Nothing }, Cmd.none )
+
+                ( Nothing, _ ) ->
+                    ( { model | iouError = Just "Invalid amount. Please enter a number." }, Cmd.none )
+
+                ( _, Nothing ) ->
+                     ( { model | iouError = Just "User not logged in." }, Cmd.none )
 
 
 updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
@@ -363,8 +450,8 @@ view model =
                     
                     IouHistory maybeOtherUserId -> -- Logic moved here
                         case ( model.currentUser, maybeOtherUserId ) of
-                            ( Just currentUserInfo, Just otherUserId ) ->
-                                Pages.UserIouHistory.view currentUserInfo.email otherUserId model.ious colors isDark
+                            ( Just _, Just _ ) -> -- Check if user logged in and ID exists
+                                Pages.UserIouHistory.view model -- Pass the whole model
                             
                             ( Nothing, _ ) -> -- User not logged in
                                 div [ Attr.class "text-center p-4", Attr.style "color" colors.primaryText ]

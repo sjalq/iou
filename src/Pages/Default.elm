@@ -1,7 +1,8 @@
 module Pages.Default exposing (..)
 
+import Components.IouInputForm
 import Html exposing (..)
-import Html.Attributes as Attr
+import Html.Attributes as Attr exposing (style, class)
 import Theme
 import Types exposing (..)
 
@@ -13,9 +14,16 @@ init model =
 
 view : FrontendModel -> Theme.Colors -> Html FrontendMsg
 view model colors =
-    div [ Attr.style "background-color" colors.primaryBg, Attr.class "min-h-screen" ]
-        [ div [ Attr.class "container mx-auto px-4 py-8" ]
-            [ h1 [ Attr.class "text-3xl font-bold mb-4", Attr.style "color" colors.primaryText ]
-                [ text "Default Page" ]
+    div [ style "background-color" colors.primaryBg, class "min-h-screen" ]
+        [ div [ class "container mx-auto px-4 py-8" ]
+            [ h1 [ class "text-3xl font-bold mb-4", style "color" colors.primaryText ]
+                [ text "IOU Dashboard" ]
+
+            , Components.IouInputForm.view model.newIouInput model.iouError colors
+
+            , div [ class "mt-8" ]
+                [ h2 [ class "text-2xl font-semibold mb-4", style "color" colors.primaryText ] [ text "Existing IOUs (Summary)" ]
+                , p [ style "color" colors.secondaryText ] [ text "(IOU display area - TBD)" ]
+                ]
             ]
         ]

@@ -10,6 +10,7 @@ import Time exposing (Posix)
 import Url exposing (Url)
 -- import Fusion.Patch
 -- import Fusion
+import Html exposing (Attribute)
 
 
 
@@ -63,6 +64,7 @@ type alias FrontendModel =
     , ious : Dict IouId IouEntry
     , iouError : Maybe String
     , isLoadingIous : Bool
+    , newIouInput : NewIouInput
     }
 
 
@@ -96,6 +98,11 @@ type FrontendMsg
     | IouOpFailed String
     | DeleteIouRequest IouId
     | CreateIouRequest IouEntryData
+    | UpdateNewIouDescription String
+    | UpdateNewIouAmount String
+    | UpdateNewIouDirection IouDirection
+    | UpdateNewIouOtherParty String
+    | SubmitNewIou
 
 
 type ToBackend
@@ -114,6 +121,7 @@ type ToBackend
     | FetchIous
     | CreateIou IouEntryData
     | DeleteIou IouId
+    | UpdateNewIou IouEntryData
 
 
 type BackendMsg
@@ -234,3 +242,12 @@ type alias IouEntryData =
 -- USER RELATED TYPES
 type alias UserId =
     Email -- Define UserId alias
+
+
+-- Helper for the form
+type alias NewIouInput =
+    { otherPartyId : String
+    , amount : String -- Store as string for input validation
+    , description : String
+    , direction : IouDirection -- Default to Lent
+    }

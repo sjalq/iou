@@ -44,6 +44,9 @@ actionRoleMap msg =
         DeleteIou _ ->
             UserRole
 
+        UpdateNewIou _ ->
+            UserRole
+
         -- Fusion_PersistPatch _ ->
         --     SysAdmin
 

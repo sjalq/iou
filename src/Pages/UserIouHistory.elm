@@ -1,25 +1,62 @@
 module Pages.UserIouHistory exposing (view, viewTransactionList)
 
+import Components.IouInputForm -- Import the shared component
 import Dict exposing (Dict)
-import Html exposing (Html, div, h2, li, p, text, ul, span, table, tbody, td, th, thead, tr)
+import Html exposing (Attribute, Html, button, div, fieldset, form, h2, input, label, li, option, p, select, span, table, tbody, td, text, th, thead, tr, ul) -- Adjusted imports
 import Html.Attributes as Attr
-import Html.Events exposing (onClick)
+import Html.Events exposing (keyCode, on, onInput, onSubmit) -- Removed unused events
+import Json.Decode as Decode
 import List.Extra
-import Time exposing (Month, Posix, Zone)
 import Theme
-import Types exposing (IouDirection(..), IouEntry, UserId)
+import Time exposing (Month, Posix, Zone)
+import Types exposing (FrontendModel, FrontendMsg(..), IouDirection(..), IouEntry, NewIouInput, Route(..), UserId)
 
 
-view : UserId -> UserId -> Dict String IouEntry -> Theme.Colors -> Bool -> Html msg
-view currentUserEmail otherUserId iouDict colors isDark =
-    div [ Attr.class "space-y-4" ]
-        [ h2 [ Theme.primaryText isDark, Attr.class "text-2xl font-semibold" ] 
-            [ text ("IOU History with " ++ otherUserId) ]
-        , viewTransactionList currentUserEmail otherUserId iouDict colors
+view : FrontendModel -> Html FrontendMsg
+view model =
+    let
+        currentUser = model.currentUser
+        maybeUserId = case model.currentRoute of
+                            Types.IouHistory maybeId -> maybeId
+                            _ -> Nothing
+
+        -- TODO: Handle Nothing cases more gracefully (e.g., show selector or error)
+        effectiveCurrentUserEmail =
+            case currentUser of
+                Just user -> user.email
+                Nothing -> "" -- Should not happen if page is protected
+
+        effectiveOtherUserId =
+            case maybeUserId of
+                Just userId -> userId
+                Nothing -> "" -- Need a way to select user or handle default view
+
+        colors = Theme.getColors model.preferences.darkMode
+    in
+    div [ Attr.class "p-6", Theme.primaryBg model.preferences.darkMode, Theme.primaryText model.preferences.darkMode ]
+        [ case maybeUserId of
+            Just otherUserId ->
+                div [ Attr.class "space-y-4" ]
+                    [ h2 [ Attr.class "text-2xl font-semibold" ]
+                        [ text ("IOU History with " ++ otherUserId) ]
+                    -- Use the shared component here
+                    , Components.IouInputForm.view model.newIouInput model.iouError colors
+                    , viewTransactionList effectiveCurrentUserEmail otherUserId model.ious colors
+                    ]
+            Nothing ->
+                div [ Attr.class "space-y-4" ]
+                    [ h2 [ Attr.class "text-2xl font-semibold" ] [ text "Overall IOU Summary" ]
+                    , p [ Theme.secondaryText model.preferences.darkMode ] [ text "Select a user to view history or implement summary view." ]
+                    -- Use the shared component here too
+                    , Components.IouInputForm.view model.newIouInput model.iouError colors
+                    ]
         ]
 
 
-viewTransactionList : UserId -> UserId -> Dict String IouEntry -> Theme.Colors -> Html msg
+-- Removed viewNewIouForm function as it's replaced by the shared component
+
+
+viewTransactionList : UserId -> UserId -> Dict String IouEntry -> Theme.Colors -> Html FrontendMsg
 viewTransactionList currentUserEmail otherUserId iouDict colors =
     let
         relevantIous : List IouEntry
@@ -88,8 +125,8 @@ viewTransactionList currentUserEmail otherUserId iouDict colors =
                             runningBalance + monthBalanceChange
 
                         monthHtml =
-                            div [ Attr.class "mb-6 p-4 rounded shadow", Attr.style "background-color" colors.secondaryBg ] 
-                                [ h2 [ Attr.class "text-xl font-medium mb-3 text-center", Attr.style "color" colors.primaryText ] 
+                            div [ Attr.class "mb-6 p-4 rounded shadow", Attr.style "background-color" colors.secondaryBg ]
+                                [ h2 [ Attr.class "text-xl font-medium mb-3 text-center", Attr.style "color" colors.primaryText ]
                                     [ text (monthToString month ++ " " ++ String.fromInt year) ]
                                 , table [ Attr.class "w-full table-auto border-collapse mx-auto", Attr.style "max-width" "800px" ]
                                     [ thead [ Attr.style "background-color" colors.primaryBg ]
@@ -103,7 +140,7 @@ viewTransactionList currentUserEmail otherUserId iouDict colors =
                                     , tbody []
                                         (List.map (viewIouRow currentUserEmail colors) iousInMonth)
                                     ]
-                                , p [ Attr.class "mt-4 font-semibold text-right", Attr.style "color" colors.primaryText, Attr.style "max-width" "800px", Attr.class "mx-auto" ] 
+                                , p [ Attr.class "mt-4 font-semibold text-right", Attr.style "color" colors.primaryText, Attr.style "max-width" "800px", Attr.class "mx-auto" ]
                                     [ text ("End of Month Balance: " ++ formatCurrency endOfMonthBalance colors) ]
                                 ]
                     in
@@ -114,35 +151,36 @@ viewTransactionList currentUserEmail otherUserId iouDict colors =
     in
     if List.isEmpty monthlyBalancesHtml then
         p [ Attr.style "color" colors.secondaryText ] [ text "No transaction history with this user yet." ]
+
     else
         div [ Attr.class "space-y-6" ]
             (List.reverse monthlyBalancesHtml
-                ++ [ p 
+                ++ [ p
                         [ Attr.class "mt-4 font-semibold text-right mx-auto"
                         , Attr.style "max-width" "800px"
-                        , Attr.style "color" colors.primaryText 
-                        ] 
+                        , Attr.style "color" colors.primaryText
+                        ]
                         [ text ("Current Overall Balance: " ++ formatCurrency finalBalance colors) ]
                    ]
             )
 
 
-viewIouRow : UserId -> Theme.Colors -> IouEntry -> Html msg
+viewIouRow : UserId -> Theme.Colors -> IouEntry -> Html FrontendMsg
 viewIouRow currentUserEmail colors iou =
     let
         isCurrentUserCreator = iou.creatorId == currentUserEmail
-        
-        ( actionText, balanceEffect ) = 
+
+        ( actionText, balanceEffect ) =
             case ( isCurrentUserCreator, iou.direction ) of
                 ( True, Lent ) -> ("You lent", iou.amount)
                 ( True, Borrowed ) -> ("You borrowed", -iou.amount)
                 ( False, Lent ) -> (iou.creatorId ++ " lent you", -iou.amount)
                 ( False, Borrowed ) -> (iou.creatorId ++ " borrowed", iou.amount)
 
-        amountColor = 
+        amountColor =
             if balanceEffect > 0 then colors.accent else colors.dangerBg
-            
-        day = 
+
+        day =
              Time.toDay Time.utc iou.createdAt
                 |> String.fromInt
                 |> String.padLeft 2 '0'
@@ -151,7 +189,7 @@ viewIouRow currentUserEmail colors iou =
     tr [ Attr.style "color" colors.secondaryText ]
         [ td [ Attr.class "p-2 border font-mono text-center", Attr.style "border-color" colors.border ] [ text day ]
         , td [ Attr.class "p-2 border", Attr.style "border-color" colors.border ] [ text iou.description ]
-        , td [ Attr.class "p-2 border text-right font-medium", Attr.style "border-color" colors.border, Attr.style "color" amountColor ] 
+        , td [ Attr.class "p-2 border text-right font-medium", Attr.style "border-color" colors.border, Attr.style "color" amountColor ]
             [ text (formatCurrency iou.amount colors) ]
         , td [ Attr.class "p-2 border", Attr.style "border-color" colors.border ] [ text actionText ]
         ]
@@ -159,7 +197,7 @@ viewIouRow currentUserEmail colors iou =
 
 formatCurrency : Float -> Theme.Colors -> String
 formatCurrency amount colors =
-    let 
+    let
         prefix = if amount < 0 then "-" else ""
         absAmount = abs amount
         formatted = String.fromFloat absAmount

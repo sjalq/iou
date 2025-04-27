@@ -228,6 +228,9 @@ updateFromFrontend browserCookie connectionId msg model =
         DeleteIou _ ->
             Debug.todo "Implement DeleteIou"
 
+        UpdateNewIou _ -> -- Add placeholder
+            Debug.todo "Implement UpdateNewIou"
+
 
 updateFromFrontendCheckingRights : BrowserCookie -> ConnectionId -> ToBackend -> Model -> ( Model, Cmd BackendMsg )
 updateFromFrontendCheckingRights browserCookie connectionId msg model =
