@@ -396,11 +396,16 @@ This section highlights common mistakes and specific patterns to follow or avoid
 ### Auth
 -  Try your best not to mess with ANY of the Auth related functions in the system. 
 
+### Circular dependancies
+-  Typically you can't import project moduble stuff that isn't in another API. module without risking a circular dependancy
+-  Circular dependancies don't work in Elm / Lamdera, so don't do that.
+
 
 ### Date / Time / DateTime
 -  Use only Elm's default Date field for actually working and calculating times.
 -  Use the rtfeldman/elm-iso8601 lib for working with date strings
 -  For simple things regarding dates, look at Supplemental.elm
+-  Don't install random Date libs, the top three should deal with most cases.
 
 # Checking the compiled output
 - Always use the `./compile.sh` script to check your code compiles and to generate Fusion types:
@@ -415,12 +420,11 @@ This section highlights common mistakes and specific patterns to follow or avoid
   - At the start of every new feature session
   - When you complete a feature
 
-  ### ALWAYS
+  # ALWAYS
   -  Always write as little code as humanly possible to solve the problem at hand.
   -  Always keep explainations as concise as possible.
   -  Always think as much as you need to.
   -  Always start every response with "Writing as little code as humanly possible, and being as concise as possible with my explanations..." unless you were asked something unrelated. 
 
-  ### Debugging
+  # Debugging
   -  When things goes sideways. Please pepper your code liberally with `_ = Debug.log "{msg}" thingy` and ` |> Debug.log "{msg}"`
-  
